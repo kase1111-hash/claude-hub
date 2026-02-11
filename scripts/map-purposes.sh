@@ -98,8 +98,7 @@ $PURPOSE_MD
 Return this exact JSON structure:
 {
   \"purpose\": \"One clear sentence describing what this repo does\",
-  \"category\": \"one of: ecosystem, tool, library, config, experiment, archive\",
-  \"ecosystem\": \"one of: agent-os, natlangchain, construction, personal, standalone\",
+  \"category\": \"one of: tool, library, config, experiment, archive\",
   \"test_command\": \"the native test command or null if none detected\",
   \"maintenance_priority\": \"one of: high, medium, low, archive\",
   \"dependencies\": [\"list of other repos in this account it depends on\"],
@@ -107,7 +106,6 @@ Return this exact JSON structure:
 }
 
 Rules for classification:
-- ecosystem repos: part of Agent-OS or NatLangChain ecosystems
 - tool: standalone utility or CLI
 - library: reusable module imported by others
 - config: configuration, dotfiles, templates (like claude-hub itself)
@@ -123,7 +121,6 @@ Rules for classification:
     RESULT='{
       "purpose": "Analysis pending — Claude could not analyze this repo",
       "category": "experiment",
-      "ecosystem": "standalone",
       "test_command": null,
       "maintenance_priority": "low",
       "dependencies": [],
@@ -138,7 +135,7 @@ Rules for classification:
   # Validate JSON
   if ! echo "$CLEAN_RESULT" | jq . >/dev/null 2>&1; then
     echo "    ⚠ Invalid JSON from Claude for $REPO_NAME, adding stub"
-    CLEAN_RESULT='{"purpose":"Analysis produced invalid JSON","category":"experiment","ecosystem":"standalone","test_command":null,"maintenance_priority":"low","dependencies":[],"notes":"Needs re-analysis"}'
+    CLEAN_RESULT='{"purpose":"Analysis produced invalid JSON","category":"experiment","test_command":null,"maintenance_priority":"low","dependencies":[],"notes":"Needs re-analysis"}'
   fi
 
   # Build full manifest entry
