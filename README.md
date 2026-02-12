@@ -21,6 +21,17 @@ This will: check dependencies, scan your GitHub repos, analyze each with Claude,
 
 ## Usage
 
+### Discovery — scan GitHub for repos
+
+```bash
+./scripts/discover.sh                  # auto-detects owner from gh CLI
+./scripts/discover.sh --owner USER     # specify owner explicitly
+```
+
+Produces `.inventory-raw.json` and `.inventory-enriched.json` in `manifests/`. Each repo is checked for `CLAUDE.md`, `.claude/` directory, and test configuration files.
+
+### Purpose Mapping — Claude analyzes each repo
+
 ```bash
 make discover       # Scan GitHub for all repos
 make map            # Analyze repos with Claude, populate manifest
@@ -58,6 +69,8 @@ claude-hub/
 3. **Maintain** clones repos, runs Claude to assess/fix/test, opens PRs for changes
 4. **Status** detects orphaned repos, ghost manifest entries, and stale maintenance
 
+Checks for: unmapped repos on GitHub, ghost manifest entries (deleted repos), stale maintenance dates, template usage, and manifest statistics.
+
 ## Adding Claude Awareness to Your Repos
 
 Copy the purpose template into any repo:
@@ -67,6 +80,13 @@ mkdir -p .claude
 cp templates/purpose.md .claude/purpose.md
 # Edit to describe the repo's purpose and maintenance rules
 ```
+
+The purpose file supports template composition:
+```markdown
+<!-- @template: python-base, agent-os-module -->
+```
+
+Available templates: `python-base`, `node-base`, `agent-os-module`, `natlangchain-module`.
 
 ## Design Principles
 

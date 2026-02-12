@@ -49,6 +49,7 @@ Each entry in `manifests/repo-map.json`:
   "test_command": "pytest|npm test|cargo test|bats test/|null",
   "claude_md_exists": true,
   "last_maintained": "2026-02-11T00:00:00Z",
+  "last_scanned": "2026-02-11T00:00:00Z",
   "maintenance_priority": "high|medium|low|archive",
   "dependencies": ["other-repo-name"],
   "notes": "Any context for future maintenance"
