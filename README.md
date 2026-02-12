@@ -12,7 +12,15 @@ cd claude-hub
 ./scripts/bootstrap.sh
 ```
 
-Bootstrap will: verify dependencies → scan your GitHub → analyze every repo's purpose → build the manifest.
+Bootstrap will:
+1. Verify dependencies (`gh`, `jq`, `claude`, `git`)
+2. Authenticate with GitHub
+3. Initialize directory structure (`manifests/`, `templates/`)
+4. Run discovery — scan your GitHub repos
+5. Run purpose mapping — Claude analyzes each repo
+6. Run self-update — check consistency
+
+Use `--yes` to skip interactive prompts or `--owner USERNAME` to specify the GitHub owner.
 
 ## Architecture
 
@@ -20,49 +28,81 @@ Bootstrap will: verify dependencies → scan your GitHub → analyze every repo'
 claude-hub (this repo)          ← Instruction memory
 ├── CLAUDE.md                   ← CPU instruction set
 ├── manifests/
-│   └── repo-map.json           ← Filesystem allocation table  
+│   ├── repo-map.json           ← Filesystem allocation table
+│   ├── reports/                ← Maintenance reports (generated)
+│   ├── .inventory-raw.json     ← Raw GitHub scan (generated)
+│   └── .inventory-enriched.json← Enriched scan data (generated)
 ├── templates/                  ← Shared libraries (.claude/purpose.md fragments)
-├── scripts/
-│   ├── bootstrap.sh            ← First-time setup
-│   ├── discover.sh             ← Scan GitHub, build inventory
-│   ├── map-purposes.sh         ← Claude analyzes each repo
-│   ├── maintain.sh             ← Run maintenance on repos
-│   └── self-update.sh          ← Hub maintains itself
-└── hooks/                      ← Pre/post maintenance hooks
+│   ├── purpose.md              ← Purpose file template for repos
+│   ├── python-base.md          ← Python project conventions
+│   ├── node-base.md            ← Node/TS project conventions
+│   ├── agent-os-module.md      ← Agent-OS ecosystem conventions
+│   └── natlangchain-module.md  ← NatLangChain ecosystem conventions
+└── scripts/
+    ├── bootstrap.sh            ← First-time setup
+    ├── discover.sh             ← Scan GitHub, build inventory
+    ├── map-purposes.sh         ← Claude analyzes each repo
+    ├── maintain.sh             ← Run maintenance on repos
+    └── self-update.sh          ← Hub maintains itself
 ```
 
 ## Usage
 
+### Discovery — scan GitHub for repos
+
 ```bash
-# Discover new repos
-./scripts/discover.sh
+./scripts/discover.sh                  # auto-detects owner from gh CLI
+./scripts/discover.sh --owner USER     # specify owner explicitly
+```
 
-# Map purposes (uses Claude Code)
-./scripts/map-purposes.sh
+Produces `.inventory-raw.json` and `.inventory-enriched.json` in `manifests/`. Each repo is checked for `CLAUDE.md`, `.claude/` directory, and test configuration files.
 
-# Maintain a specific repo
-./scripts/maintain.sh my-repo-name
+### Purpose Mapping — Claude analyzes each repo
 
-# Maintain all high-priority repos
-./scripts/maintain.sh --priority high
+```bash
+./scripts/map-purposes.sh             # analyze unmapped repos only
+./scripts/map-purposes.sh --force     # re-analyze all repos
+```
 
-# Maintain everything (dry run first)
-./scripts/maintain.sh --all --dry-run
-./scripts/maintain.sh --all
+Clones each repo, sends context to Claude Code for analysis, and populates `repo-map.json` with purpose, category, ecosystem, test command, priority, and dependencies.
 
-# Self-update (check for drift)
+### Maintenance — run Claude Code on repos
+
+```bash
+./scripts/maintain.sh my-repo-name          # maintain one repo
+./scripts/maintain.sh --all                 # maintain all repos
+./scripts/maintain.sh --all --dry-run       # report only, no changes
+./scripts/maintain.sh --priority high       # filter by priority
+./scripts/maintain.sh --category ecosystem  # filter by category
+./scripts/maintain.sh --ecosystem agent-os  # filter by ecosystem
+```
+
+Generates a timestamped report in `manifests/reports/`.
+
+### Self-Update — hub maintains itself
+
+```bash
 ./scripts/self-update.sh
 ```
 
+Checks for: unmapped repos on GitHub, ghost manifest entries (deleted repos), stale maintenance dates, template usage, and manifest statistics.
+
 ## Adding Claude Awareness to Your Repos
 
-Copy `templates/purpose-template.md` to `.claude/purpose.md` in any repo:
+Copy `templates/purpose.md` to `.claude/purpose.md` in any repo:
 
 ```bash
 mkdir -p .claude
-cp /path/to/claude-hub/templates/purpose-template.md .claude/purpose.md
+cp /path/to/claude-hub/templates/purpose.md .claude/purpose.md
 # Edit to describe this repo's purpose and maintenance rules
 ```
+
+The purpose file supports template composition:
+```markdown
+<!-- @template: python-base, agent-os-module -->
+```
+
+Available templates: `python-base`, `node-base`, `agent-os-module`, `natlangchain-module`.
 
 ## Design Principles
 
@@ -73,7 +113,7 @@ cp /path/to/claude-hub/templates/purpose-template.md .claude/purpose.md
 
 ## Dependencies
 
-- [GitHub CLI (`gh`)](https://cli.github.com/) — authenticated
-- [jq](https://stedolan.github.io/jq/) — JSON processing
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) — the CPU
+- [GitHub CLI (`gh`)](https://cli.github.com/) — authenticated via `gh auth login`
+- [jq](https://jqlang.github.io/jq/) — JSON processing
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) — the CPU (`npm install -g @anthropic-ai/claude-code`)
 - Git
