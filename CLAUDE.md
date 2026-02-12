@@ -15,10 +15,10 @@ maintain them, and keep them healthy — including yourself.
 │  │ CLAUDE.md │ │ manifest │ │   templates/   │  │
 │  │ (CPU ISA) │ │ (FAT/fs) │ │ (shared libs)  │  │
 │  └───────────┘ └──────────┘ └────────────────┘  │
-│  ┌───────────────┐ ┌──────────────────────────┐  │
-│  │   scripts/    │ │        hooks/            │  │
-│  │ (syscalls)    │ │  (interrupt handlers)    │  │
-│  └───────────────┘ └──────────────────────────┘  │
+│  ┌───────────────┐                               │
+│  │   scripts/    │                               │
+│  │ (syscalls)    │                               │
+│  └───────────────┘                               │
 └─────────────┬───────────────────────────────────┘
               │ GitHub API
     ┌─────────┼─────────┬──────────┬──────────┐
@@ -41,11 +41,20 @@ maintain them, and keep them healthy — including yourself.
 
 ### Discovery (scan the filesystem)
 ```bash
-# Run from claude-hub root
-./scripts/discover.sh
+./scripts/discover.sh [--owner OWNER]
 ```
-This calls the GitHub API, finds all repos, and produces a raw inventory.
-Claude then analyzes each repo to determine its purpose and updates the manifest.
+Calls the GitHub API, finds all repos, and produces a raw inventory.
+Outputs `.inventory-raw.json` and `.inventory-enriched.json` in `manifests/`.
+Each repo is checked for CLAUDE.md, .claude/ directory, and test config files.
+
+### Purpose Mapping (analyze each repo)
+```bash
+./scripts/map-purposes.sh            # analyze unmapped repos
+./scripts/map-purposes.sh --force    # re-analyze all repos
+```
+Clones each repo, sends context to Claude Code (`claude --print`), and populates
+`manifests/repo-map.json` with purpose, category, ecosystem, test command, and priority.
+Repos that already have manifest entries are skipped unless `--force` is used.
 
 ### Maintenance (scheduled or on-demand)
 ```bash
@@ -57,20 +66,37 @@ Claude then analyzes each repo to determine its purpose and updates the manifest
 
 # Dry run (report only)
 ./scripts/maintain.sh --all --dry-run
+
+# Filter by category, priority, or ecosystem
+./scripts/maintain.sh --category ecosystem
+./scripts/maintain.sh --priority high
+./scripts/maintain.sh --ecosystem agent-os
 ```
+Generates timestamped reports in `manifests/reports/`.
 
 ### Self-Update (reflexive maintenance)
 ```bash
-./scripts/maintain.sh claude-hub
+./scripts/self-update.sh
 ```
-When maintaining itself, Claude should:
-- Check if any new repos lack manifest entries
-- Update templates/ if patterns have evolved
-- Reconcile the manifest with actual GitHub state
+The dedicated self-update script checks:
+- Orphaned repos (on GitHub but not in the manifest)
+- Ghost entries (in manifest but deleted from GitHub — auto-removed)
+- Stale repos (not maintained in 30+ days, grouped by priority)
+- Template usage across the system
+- Manifest statistics (counts by category, ecosystem, priority)
 
 ## Manifest Schema
 
-Each repo entry in `manifests/repo-map.json`:
+The top-level `manifests/repo-map.json` structure:
+```json
+{
+  "owner": "github-username",
+  "last_full_scan": "2026-02-11T00:00:00Z",
+  "repos": [...]
+}
+```
+
+Each repo entry in the `repos` array:
 ```json
 {
   "name": "repo-name",
@@ -81,6 +107,7 @@ Each repo entry in `manifests/repo-map.json`:
   "test_command": "pytest|npm test|cargo test|bats test/|null",
   "claude_md_exists": true,
   "last_maintained": "2026-02-11T00:00:00Z",
+  "last_scanned": "2026-02-11T00:00:00Z",
   "maintenance_priority": "high|medium|low|archive",
   "dependencies": ["other-repo-name"],
   "notes": "Any context Claude needs for future maintenance"
@@ -90,6 +117,7 @@ Each repo entry in `manifests/repo-map.json`:
 ## Template System
 
 Templates in `templates/` are reusable CLAUDE.md fragments:
+- `templates/purpose.md` — Base template for `.claude/purpose.md` files (copy this into repos)
 - `templates/python-base.md` — Standard Python project instructions
 - `templates/node-base.md` — Standard Node/TS project instructions
 - `templates/agent-os-module.md` — Agent-OS ecosystem conventions
