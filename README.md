@@ -1,50 +1,23 @@
 # Claude Hub
 
-**GitHub is the filesystem. Claude is the CPU.**
-
-Claude Hub is a self-maintaining orchestration layer that treats your entire GitHub account as a unified filesystem. One repo (this one) holds the instruction set. Every other repo is a file on the disk. Claude Code reads, maintains, tests, and documents them all — including itself.
+Claude Hub maintains all your GitHub repos from one place. It scans your account, analyzes each repo, and runs Claude Code to assess, fix, test, and PR changes — including on itself.
 
 ## Quick Start
 
 ```bash
 git clone https://github.com/YOUR_USER/claude-hub.git
 cd claude-hub
-./scripts/bootstrap.sh
+make bootstrap
 ```
 
-Bootstrap will:
-1. Verify dependencies (`gh`, `jq`, `claude`, `git`)
-2. Authenticate with GitHub
-3. Initialize directory structure (`manifests/`, `templates/`)
-4. Run discovery — scan your GitHub repos
-5. Run purpose mapping — Claude analyzes each repo
-6. Run self-update — check consistency
+This will: check dependencies, scan your GitHub repos, analyze each with Claude, and report status.
 
-Use `--yes` to skip interactive prompts or `--owner USERNAME` to specify the GitHub owner.
+## Requirements
 
-## Architecture
-
-```
-claude-hub (this repo)          ← Instruction memory
-├── CLAUDE.md                   ← CPU instruction set
-├── manifests/
-│   ├── repo-map.json           ← Filesystem allocation table
-│   ├── reports/                ← Maintenance reports (generated)
-│   ├── .inventory-raw.json     ← Raw GitHub scan (generated)
-│   └── .inventory-enriched.json← Enriched scan data (generated)
-├── templates/                  ← Shared libraries (.claude/purpose.md fragments)
-│   ├── purpose.md              ← Purpose file template for repos
-│   ├── python-base.md          ← Python project conventions
-│   ├── node-base.md            ← Node/TS project conventions
-│   ├── agent-os-module.md      ← Agent-OS ecosystem conventions
-│   └── natlangchain-module.md  ← NatLangChain ecosystem conventions
-└── scripts/
-    ├── bootstrap.sh            ← First-time setup
-    ├── discover.sh             ← Scan GitHub, build inventory
-    ├── map-purposes.sh         ← Claude analyzes each repo
-    ├── maintain.sh             ← Run maintenance on repos
-    └── self-update.sh          ← Hub maintains itself
-```
+- [GitHub CLI (`gh`)](https://cli.github.com/) — authenticated via `gh auth login`
+- [jq](https://stedolan.github.io/jq/) — JSON processing
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) — for repo analysis and maintenance
+- Git
 
 ## Usage
 
@@ -60,41 +33,52 @@ Produces `.inventory-raw.json` and `.inventory-enriched.json` in `manifests/`. E
 ### Purpose Mapping — Claude analyzes each repo
 
 ```bash
-./scripts/map-purposes.sh             # analyze unmapped repos only
-./scripts/map-purposes.sh --force     # re-analyze all repos
+make discover       # Scan GitHub for all repos
+make map            # Analyze repos with Claude, populate manifest
+make maintain REPO=my-repo   # Maintain a specific repo
+make maintain-all   # Maintain everything
+make maintain-dry   # Dry-run (report only, no changes)
+make status         # Check for drift and staleness
+make test           # Run tests (requires bats)
+make lint           # Run shellcheck on scripts
 ```
 
-Clones each repo, sends context to Claude Code for analysis, and populates `repo-map.json` with purpose, category, ecosystem, test command, priority, and dependencies.
-
-### Maintenance — run Claude Code on repos
+Or use the scripts directly:
 
 ```bash
-./scripts/maintain.sh my-repo-name          # maintain one repo
-./scripts/maintain.sh --all                 # maintain all repos
-./scripts/maintain.sh --all --dry-run       # report only, no changes
-./scripts/maintain.sh --priority high       # filter by priority
-./scripts/maintain.sh --category ecosystem  # filter by category
-./scripts/maintain.sh --ecosystem agent-os  # filter by ecosystem
+./scripts/discover.sh              # Scan GitHub
+./scripts/map-purposes.sh          # Analyze with Claude
+./scripts/maintain.sh my-repo      # Maintain one repo
+./scripts/maintain.sh --all        # Maintain all
+./scripts/maintain.sh --all --dry-run
+./scripts/self-update.sh           # Check consistency
 ```
 
-Generates a timestamped report in `manifests/reports/`.
+## How It Works
 
-### Self-Update — hub maintains itself
-
-```bash
-./scripts/self-update.sh
 ```
+claude-hub/
+├── manifests/repo-map.json   ← Registry of all repos + metadata
+├── scripts/                  ← Discovery, mapping, maintenance, self-check
+├── templates/                ← Reusable .claude/purpose.md fragments
+└── test/                     ← bats tests
+```
+
+1. **Discover** scans your GitHub account and builds an inventory
+2. **Map** uses Claude to analyze each repo's purpose, category, and test setup
+3. **Maintain** clones repos, runs Claude to assess/fix/test, opens PRs for changes
+4. **Status** detects orphaned repos, ghost manifest entries, and stale maintenance
 
 Checks for: unmapped repos on GitHub, ghost manifest entries (deleted repos), stale maintenance dates, template usage, and manifest statistics.
 
 ## Adding Claude Awareness to Your Repos
 
-Copy `templates/purpose.md` to `.claude/purpose.md` in any repo:
+Copy the purpose template into any repo:
 
 ```bash
 mkdir -p .claude
-cp /path/to/claude-hub/templates/purpose.md .claude/purpose.md
-# Edit to describe this repo's purpose and maintenance rules
+cp templates/purpose.md .claude/purpose.md
+# Edit to describe the repo's purpose and maintenance rules
 ```
 
 The purpose file supports template composition:
@@ -106,14 +90,7 @@ Available templates: `python-base`, `node-base`, `agent-os-module`, `natlangchai
 
 ## Design Principles
 
-1. **Environment-native testing** — pytest for Python, npm test for Node, cargo test for Rust. No Docker, no VMs, no cross-platform matrices.
+1. **Test natively** — pytest for Python, npm test for Node, cargo test for Rust. No Docker.
 2. **Never push to main** — all changes go through PRs.
-3. **Self-maintaining** — the hub updates its own manifest and templates.
-4. **Constitutional constraints** — never delete repos, always preserve existing CLAUDE.md content, flag don't auto-archive.
-
-## Dependencies
-
-- [GitHub CLI (`gh`)](https://cli.github.com/) — authenticated via `gh auth login`
-- [jq](https://jqlang.github.io/jq/) — JSON processing
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) — the CPU (`npm install -g @anthropic-ai/claude-code`)
-- Git
+3. **Self-maintaining** — the hub checks its own consistency.
+4. **Human-in-the-loop** — flags sensitive changes for review, never auto-archives.

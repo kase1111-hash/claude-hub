@@ -6,7 +6,7 @@ set -euo pipefail
 #   ./scripts/maintain.sh <repo-name>        # maintain one repo
 #   ./scripts/maintain.sh --all              # maintain all repos
 #   ./scripts/maintain.sh --all --dry-run    # report only
-#   ./scripts/maintain.sh --category agent-os # maintain by category
+#   ./scripts/maintain.sh --category tool    # maintain by category
 #   ./scripts/maintain.sh --priority high    # maintain by priority
 #
 # Requires: gh CLI, jq, claude CLI (Claude Code)
@@ -29,13 +29,12 @@ while [[ $# -gt 0 ]]; do
     --dry-run) DRY_RUN=true; shift ;;
     --category) FILTER_KEY="category"; FILTER_VAL="$2"; TARGET="__FILTER__"; shift 2 ;;
     --priority) FILTER_KEY="maintenance_priority"; FILTER_VAL="$2"; TARGET="__FILTER__"; shift 2 ;;
-    --ecosystem) FILTER_KEY="ecosystem"; FILTER_VAL="$2"; TARGET="__FILTER__"; shift 2 ;;
     *) TARGET="$1"; shift ;;
   esac
 done
 
 if [[ -z "$TARGET" ]]; then
-  echo "Usage: maintain.sh <repo-name> | --all | --category <cat> | --priority <pri>"
+  echo "Usage: maintain.sh <repo-name> | --all | --category <cat> | --priority <pri> [--dry-run]"
   exit 1
 fi
 
@@ -88,7 +87,7 @@ for repo in $REPOS; do
   # Clone/update repo into workspace
   WORKSPACE="/tmp/claude-hub-workspace/$repo"
   if [[ -d "$WORKSPACE" ]]; then
-    cd "$WORKSPACE" && git pull --quiet
+    git -C "$WORKSPACE" pull --quiet
   else
     mkdir -p "$(dirname "$WORKSPACE")"
     gh repo clone "$OWNER/$repo" "$WORKSPACE" -- --quiet
@@ -116,10 +115,9 @@ Rules:
 Hub templates available at: $TEMPLATES_DIR/
 Report your findings as structured output."
 
-  # Run Claude Code on the repo
-  cd "$WORKSPACE"
-  CLAUDE_OUTPUT=$(claude --print "$PROMPT" 2>&1) || true
-  
+  # Run Claude Code on the repo (in subshell to avoid changing cwd)
+  CLAUDE_OUTPUT=$(cd "$WORKSPACE" && claude --print "$PROMPT" 2>&1) || true
+
   echo "$CLAUDE_OUTPUT" >> "$REPORT_FILE"
   echo "" >> "$REPORT_FILE"
 
@@ -128,7 +126,7 @@ Report your findings as structured output."
     '(.repos[] | select(.name==$r)).last_maintained = $t' \
     "$MANIFEST" > "${MANIFEST}.tmp" && mv "${MANIFEST}.tmp" "$MANIFEST"
 
-  echo "  ✓ Maintenance complete for $repo"
+  echo "  Maintenance complete for $repo"
   echo ""
 done
 

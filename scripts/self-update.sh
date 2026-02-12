@@ -95,8 +95,6 @@ echo "--- Manifest Summary ---"
 echo "Total repos: $(jq '.repos | length' "$MANIFEST")"
 echo "By category:"
 jq -r '.repos | group_by(.category) | .[] | "  \(.[0].category): \(length)"' "$MANIFEST"
-echo "By ecosystem:"
-jq -r '.repos | group_by(.ecosystem) | .[] | "  \(.[0].ecosystem): \(length)"' "$MANIFEST"
 echo "By priority:"
 jq -r '.repos | group_by(.maintenance_priority) | .[] | "  \(.[0].maintenance_priority): \(length)"' "$MANIFEST"
 
